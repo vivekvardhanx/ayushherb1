@@ -20,6 +20,11 @@ admin.initializeApp({
 // Connect to MongoDB
 const mongoURI = process.env.MONGO_URI;
 
+if (!mongoURI) {
+  console.error("MONGO_URI environment variable not found. Please set it in your Render environment.");
+  process.exit(1); // Exit the process to prevent further errors
+}
+
 mongoose.connect(mongoURI)
   .then(() => console.log("MongoDB connected successfully"))
   .catch((err) => console.error("MongoDB connection error:", err));
