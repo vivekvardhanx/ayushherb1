@@ -1,0 +1,36 @@
+/* src/index.css or src/global.css */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+
+/* Custom Scrollbar Styles */
+/* Custom Scrollbar Styles */
+@layer utilities {
+  /* For entire document scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px; /* Width of the scrollbar */
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #f1f1f1; /* Background color of the scrollbar track */
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: #888; /* Color of the scrollbar thumb */
+    border-radius: 10px; /* Roundness of the scrollbar thumb */
+    border: 2px solid #f1f1f1; /* Optional: Border around the scrollbar thumb */
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #555; /* Color of the scrollbar thumb on hover */
+  }
+
+  /* Specific to the popup */
+  .custom-scrollbar {
+    max-height: 80vh; /* Adjust based on your layout */
+    overflow-y: auto; /* Enable vertical scrolling */
+  }
+}
