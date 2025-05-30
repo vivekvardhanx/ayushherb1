@@ -107,6 +107,11 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", message: "Backend is healthy!" });
 });
 
+// Add this test endpoint after other routes, before app.listen
+app.get("/api/test", (req, res) => {
+  res.json({ message: "Test endpoint working!" });
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
