@@ -12,7 +12,6 @@ import PlantCardsSection from "../components/PlantCardsSection";
 import PlantPopup from "../components/PlantPopup";
 import ChatbotButton from "../components/BotpressChatbot";
 
-
 const itemsPerPage = 8;
 
 const Home = () => {
@@ -68,11 +67,21 @@ const Home = () => {
   useEffect(() => {
     const getPlants = async () => {
       try {
+        setLoading(true);
+        console.log("Fetching herbs from API...");
         const response = await fetchHerbs();
-        setPlants(response.data);
+        console.log("API Response:", response);
+        
+        if (response && response.data) {
+          setPlants(response.data);
+          console.log("Plants loaded:", response.data.length);
+        } else {
+          console.error("Invalid response structure:", response);
+          setError("Invalid data received from server");
+        }
       } catch (err) {
         console.error("Error fetching plants:", err);
-        setError("Failed to fetch plants");
+        setError("Failed to fetch plants. Please try again later.");
       } finally {
         setLoading(false);
       }
@@ -81,7 +90,20 @@ const Home = () => {
     getPlants();
   }, []);
 
-  // ⬇️ Auto scroll to plant cards when search or filter changes
+  // Load bookmarked plants from localStorage
+  useEffect(() => {
+    const savedBookmarks = localStorage.getItem("bookmarkedPlants");
+    if (savedBookmarks) {
+      try {
+        setBookmarkedPlants(JSON.parse(savedBookmarks));
+      } catch (error) {
+        console.error("Error parsing bookmarked plants:", error);
+        setBookmarkedPlants([]);
+      }
+    }
+  }, []);
+
+  // Auto scroll to plant cards when search or filter changes
   useEffect(() => {
     if (searchTerm || filterRegion !== "All Regions" || filterType !== "All Types") {
       scrollToPlantCards();
@@ -89,43 +111,91 @@ const Home = () => {
   }, [searchTerm, filterRegion, filterType]);
 
   const handleDownloadNotes = () => {
+    if (!notes.trim()) {
+      alert("Please write some notes before downloading.");
+      return;
+    }
+    
     const doc = new jsPDF();
-    doc.text(notes, 10, 10);
-    doc.save("notes.pdf");
+    const plantName = selectedPlant?.name || "Plant";
+    
+    // Add title
+    doc.setFontSize(16);
+    doc.text(`Notes for ${plantName}`, 10, 20);
+    
+    // Add notes content
+    doc.setFontSize(12);
+    const splitText = doc.splitTextToSize(notes, 180);
+    doc.text(splitText, 10, 40);
+    
+    doc.save(`${plantName}_notes.pdf`);
   };
 
   const handleShare = () => {
     if (selectedPlant?.sketchfabModelUrl) {
-      navigator.clipboard
-        .writeText(selectedPlant.sketchfabModelUrl)
-        .then(() => {
-          alert("Sketchfab model link copied to clipboard!");
-        });
+      const shareText = `Check out this amazing 3D model of ${selectedPlant.name}!`;
+      const shareUrl = selectedPlant.sketchfabModelUrl;
+      
+      if (navigator.share) {
+        navigator.share({
+          title: selectedPlant.name,
+          text: shareText,
+          url: shareUrl,
+        }).catch(console.error);
+      } else {
+        navigator.clipboard
+          .writeText(`${shareText}\n${shareUrl}`)
+          .then(() => {
+            alert("Link copied to clipboard!");
+          })
+          .catch(() => {
+            alert("Failed to copy link. Please try again.");
+          });
+      }
+    } else {
+      alert("No 3D model available to share.");
     }
   };
 
   const openPopup = (plant) => {
+    // Prepare multimedia array from individual multimedia fields
     const multimedia = [
       plant.multimedia1,
       plant.multimedia2,
       plant.multimedia3,
       plant.multimedia4,
     ].filter(Boolean);
+    
     setSelectedPlant({ ...plant, multimedia });
     setIsPopupOpen(true);
+    setNotes(""); // Reset notes when opening new plant
   };
 
   const closePopup = () => {
     setIsPopupOpen(false);
     setSelectedPlant(null);
+    setNotes("");
   };
 
-  const handleRegionChange = (e) => setFilterRegion(e.target.value);
-  const handleTypeChange = (e) => setFilterType(e.target.value);
+  const handleRegionChange = (e) => {
+    setFilterRegion(e.target.value);
+    setCurrentPage(1); // Reset to first page when filter changes
+  };
+
+  const handleTypeChange = (e) => {
+    setFilterType(e.target.value);
+    setCurrentPage(1); // Reset to first page when filter changes
+  };
+
   const toggleFilter = () => setIsFilterOpen(!isFilterOpen);
   const toggleQuiz = () => setIsQuizOpen(!isQuizOpen);
   const toggleChatbot = () => setShowChatbot(!showChatbot);
-  const handleSearchChange = (e) => setSearchTerm(e.target.value);
+  
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+    setCurrentPage(1); // Reset to first page when search changes
+  };
+  
   const toggleMenu = () => setIsOpen(!isOpen);
 
   const handleBookmark = (plant) => {
@@ -153,12 +223,29 @@ const Home = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-green-500 border-solid"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-green-500 border-solid mx-auto mb-4"></div>
+          <p className="text-green-600 text-lg">Loading herbs...</p>
+        </div>
       </div>
     );
   }
 
-  if (error) return <div>{error}</div>;
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-white">
+        <div className="text-center">
+          <div className="text-red-500 text-xl mb-4">⚠️ {error}</div>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="font-poppins scrollbar-thin">
@@ -169,6 +256,8 @@ const Home = () => {
         onToggleQuiz={toggleQuiz}
         isOpen={isOpen}
         toggleMenu={toggleMenu}
+        isFilterOpen={isFilterOpen}
+        setIsFilterOpen={setIsFilterOpen}
       />
 
       <FirstPage onGetStartedClick={scrollToPlantCards} />
@@ -189,74 +278,85 @@ const Home = () => {
         ref={plantCardsRef}
         className="min-h-screen px-4 sm:px-6 py-6"
       >
-        <PlantCardsSection
-          plants={filteredPlants}
-          onLearnMore={openPopup}
-          onBookmark={handleBookmark}
-          bookmarkedPlants={bookmarkedPlants}
-          currentPage={currentPage}
-          itemsPerPage={itemsPerPage}
-        />
+        {filteredPlants.length === 0 ? (
+          <div className="text-center py-20">
+            <p className="text-gray-500 text-xl">No herbs found matching your criteria.</p>
+            <p className="text-gray-400 mt-2">Try adjusting your search or filters.</p>
+          </div>
+        ) : (
+          <PlantCardsSection
+            plants={filteredPlants}
+            onLearnMore={openPopup}
+            onBookmark={handleBookmark}
+            bookmarkedPlants={bookmarkedPlants}
+            currentPage={currentPage}
+            itemsPerPage={itemsPerPage}
+          />
+        )}
       </div>
-      <div className="flex justify-center mt-6 space-x-2">
-        <button
-          onClick={() => setCurrentPage(1)}
-          disabled={currentPage === 1}
-          className="px-3 py-1 border rounded disabled:opacity-50"
-        >
-          First
-        </button>
 
-        <button
-          onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-          disabled={currentPage === 1}
-          className="px-3 py-1 border rounded disabled:opacity-50"
-        >
-          Prev
-        </button>
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center mt-6 space-x-2 pb-8">
+          <button
+            onClick={() => setCurrentPage(1)}
+            disabled={currentPage === 1}
+            className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
+          >
+            First
+          </button>
 
-        {[...Array(totalPages)].map((_, index) => {
-          const page = index + 1;
-          if (
-            page === 1 ||
-            page === totalPages ||
-            (page >= currentPage - 1 && page <= currentPage + 1)
-          ) {
-            return (
-              <button
-                key={page}
-                onClick={() => setCurrentPage(page)}
-                className={`px-3 py-1 border rounded ${
-                  page === currentPage ? "bg-green-500 text-white" : ""
-                }`}
-              >
-                {page}
-              </button>
-            );
-          } else if (page === currentPage - 2 || page === currentPage + 2) {
-            return <span key={page}>...</span>;
-          }
-          return null;
-        })}
+          <button
+            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
+          >
+            Prev
+          </button>
 
-        <button
-          onClick={() =>
-            setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-          }
-          disabled={currentPage === totalPages}
-          className="px-3 py-1 border rounded disabled:opacity-50"
-        >
-          Next
-        </button>
+          {[...Array(totalPages)].map((_, index) => {
+            const page = index + 1;
+            if (
+              page === 1 ||
+              page === totalPages ||
+              (page >= currentPage - 1 && page <= currentPage + 1)
+            ) {
+              return (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`px-3 py-1 border rounded ${
+                    page === currentPage ? "bg-green-500 text-white" : "hover:bg-gray-100"
+                  }`}
+                >
+                  {page}
+                </button>
+              );
+            } else if (page === currentPage - 2 || page === currentPage + 2) {
+              return <span key={page} className="px-2">...</span>;
+            }
+            return null;
+          })}
 
-        <button
-          onClick={() => setCurrentPage(totalPages)}
-          disabled={currentPage === totalPages}
-          className="px-3 py-1 border rounded disabled:opacity-50"
-        >
-          Last
-        </button>
-      </div>
+          <button
+            onClick={() =>
+              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+            }
+            disabled={currentPage === totalPages}
+            className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
+          >
+            Next
+          </button>
+
+          <button
+            onClick={() => setCurrentPage(totalPages)}
+            disabled={currentPage === totalPages}
+            className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
+          >
+            Last
+          </button>
+        </div>
+      )}
 
       <PlantPopup
         isOpen={isPopupOpen}
